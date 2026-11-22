@@ -1,23 +1,32 @@
 # .github/workflows/security.yml
 # ─────────────────────────────────────────────────────────────────
-# DevSecOps Security Pipeline
-# Runs automatically on every push and pull request.
-# Three jobs run in parallel, each on a fresh Ubuntu VM.
+# DevSecOps Security Pipeline — Full Version
+# Runs on every push and pull request.
+# Three jobs run in parallel. All findings are uploaded to
+# GitHub's Security → Code scanning tab as SARIF reports.
 # ─────────────────────────────────────────────────────────────────
 
 name: Security Pipeline
 
-on:         # WHEN to run this workflow
-  push:     # on every git push (any branch)
-  pull_request:  # on every pull request
+on:
+  push:
+  pull_request:
+
+# permissions tells GitHub what this workflow is allowed to do.
+# security-events: write  → required to upload SARIF to the Security tab
+# contents: read          → allows checking out code (read-only)
+permissions:
+  contents: read
+  security-events: write
 
 jobs:
 
-  # ═══════════════════════════════════════════════════════
-  # JOB 1 — Secret Scanning with Gitleaks
-  # Scans all files and git history for accidentally
-  # committed secrets (API keys, passwords, tokens).
-  # ═══════════════════════════════════════════════════════
+  # ═══════════════════════════════════════════════════════════════
+  # JOB 1 — Secret Scanning (Gitleaks)
+  # Scans all files and full git history for secrets.
+  # gitleaks-action v2 automatically uploads results to GitHub
+  # Security tab when security-events: write permission is set.
+  # ═══════════════════════════════════════════════════════════════
   secret-scanning:
     name: 🔑 Secret Scanning (Gitleaks)
     runs-on: ubuntu-latest
@@ -32,12 +41,13 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # SARIF upload is automatic when security-events: write is set above
 
-  # ═══════════════════════════════════════════════════════
-  # JOB 2 — Dependency Scanning with pip-audit
-  # Checks requirements.txt against the CVE database.
-  # Flags any package with a known security vulnerability.
-  # ═══════════════════════════════════════════════════════
+  # ═══════════════════════════════════════════════════════════════
+  # JOB 2 — Dependency Scanning (pip-audit)
+  # Checks requirements.txt against the public CVE database.
+  # Fails the pipeline if any package has a known vulnerability.
+  # ═══════════════════════════════════════════════════════════════
   dependency-scanning:
     name: 📦 Dependency Scanning (pip-audit)
     runs-on: ubuntu-latest
@@ -46,7 +56,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -55,14 +65,20 @@ jobs:
         run: pip install pip-audit
 
       - name: Run pip-audit
+        # Scans app/requirements.txt and fails if any CVE is found.
+        # Fix: bump the pinned version to one that is not vulnerable.
         run: pip-audit -r app/requirements.txt
 
-  # ═══════════════════════════════════════════════════════
-  # JOB 3 — Static Analysis (SAST) with Bandit
-  # Scans Python source code for insecure patterns such as
-  # hardcoded passwords, SQL injection risks, use of weak
-  # cryptography, and other common vulnerabilities.
-  # ═══════════════════════════════════════════════════════
+  # ═══════════════════════════════════════════════════════════════
+  # JOB 3 — Static Analysis / SAST (Bandit)
+  # Reads Python source code without executing it and flags
+  # insecure patterns: shell injection, hardcoded passwords,
+  # use of eval(), weak crypto, SQL injection risks, etc.
+  #
+  # SARIF report is uploaded to GitHub Security → Code scanning,
+  # where findings are shown file-by-file with line numbers and
+  # severity levels, and annotated directly on PR diffs.
+  # ═══════════════════════════════════════════════════════════════
   static-analysis:
     name: 🔍 Static Analysis (Bandit)
     runs-on: ubuntu-latest
@@ -71,13 +87,41 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Install Bandit
-        run: pip install bandit
+      - name: Install Bandit with SARIF support
+        # bandit[sarif] installs the extra serializer needed for SARIF output
+        run: pip install bandit[sarif]
 
-      - name: Run Bandit
-        run: bandit -r app/ -ll   # -ll = only report medium and high severity issues
+      - name: Run Bandit and generate SARIF report
+        # -r app/     → scan the app/ folder recursively
+        # -ll         → report Medium and High severity only (skip Low noise)
+        # -f sarif    → output in SARIF format (structured, machine-readable)
+        # -o ...      → write results to this file
+        # continue-on-error: true → keep running even if issues found,
+        #   so the SARIF upload step below always runs
+        id: bandit
+        run: bandit -r app/ -ll -f sarif -o bandit-results.sarif
+        continue-on-error: true
+
+      - name: Upload Bandit SARIF to GitHub Security tab
+        # This sends bandit-results.sarif to GitHub's Code Scanning feature.
+        # Results appear under Security → Code scanning in your repo.
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: bandit-results.sarif
+          category: bandit-sast   # label shown in the Security tab
+        if: always()   # run this even if the bandit step above failed
+
+      - name: Fail pipeline if Bandit found security issues
+        # This step re-runs Bandit in human-readable format so you can see
+        # the findings clearly in the Action log, then exits with code 1
+        # to mark the job as failed (blocking any PR merge).
+        if: steps.bandit.outcome == 'failure'
+        run: |
+          echo "::error::Bandit found security issues — see Security → Code scanning for details."
+          bandit -r app/ -ll
+          exit 1

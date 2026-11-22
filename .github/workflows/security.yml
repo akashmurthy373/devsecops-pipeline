@@ -1,9 +1,23 @@
 # .github/workflows/security.yml
 # ─────────────────────────────────────────────────────────────────
 # DevSecOps Security Pipeline — Full Version
-# Runs on every push and pull request.
-# Three jobs run in parallel. All findings are uploaded to
-# GitHub's Security → Code scanning tab as SARIF reports.
+#
+# TRIGGERS:
+#   push            → runs on every git push
+#   pull_request    → runs on every PR (blocks merge if any job fails)
+#   schedule        → runs every Monday at 2 AM UTC automatically
+#                     (catches new CVEs even when no code is pushed)
+#   workflow_dispatch → adds a manual "Run workflow" button in GitHub UI
+#
+# JOBS (all run in parallel on separate VMs):
+#   1. 🔑 Secret Scanning    — Gitleaks
+#   2. 📦 Dependency Audit   — pip-audit
+#   3. 🔍 Static Analysis    — Bandit (SARIF → Security tab)
+#   4. 🐳 Container Scanning — Trivy  (SARIF → Security tab)
+#
+# EXTRAS (on every job):
+#   - Job summary: formatted markdown report in the Actions UI
+#   - Artifact upload: downloadable SARIF files from each run
 # ─────────────────────────────────────────────────────────────────
 
 name: Security Pipeline
@@ -11,10 +25,13 @@ name: Security Pipeline
 on:
   push:
   pull_request:
+  schedule:
+    - cron: "0 2 * * 1"   # Every Monday at 02:00 AM UTC
+  workflow_dispatch:        # Adds "Run workflow" button in the Actions tab
 
-# permissions tells GitHub what this workflow is allowed to do.
-# security-events: write  → required to upload SARIF to the Security tab
-# contents: read          → allows checking out code (read-only)
+# Permissions this workflow needs:
+#   contents: read       → checkout code (read-only)
+#   security-events: write → upload SARIF to GitHub Security tab
 permissions:
   contents: read
   security-events: write
@@ -23,9 +40,8 @@ jobs:
 
   # ═══════════════════════════════════════════════════════════════
   # JOB 1 — Secret Scanning (Gitleaks)
-  # Scans all files and full git history for secrets.
-  # gitleaks-action v2 automatically uploads results to GitHub
-  # Security tab when security-events: write permission is set.
+  # Scans every file and every commit in git history for secrets.
+  # gitleaks-action v2 auto-uploads results to the Security tab.
   # ═══════════════════════════════════════════════════════════════
   secret-scanning:
     name: 🔑 Secret Scanning (Gitleaks)
@@ -35,18 +51,29 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # full git history required by Gitleaks
+          fetch-depth: 0   # Gitleaks needs full git history
 
       - name: Run Gitleaks
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # SARIF upload is automatic when security-events: write is set above
+
+      - name: Write job summary
+        if: always()
+        run: |
+          echo "### 🔑 Secret Scanning — Gitleaks" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Result |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "| Secrets in files or git history | ✅ None found |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Secrets in files or git history | ❌ Secret detected — remove it immediately |" >> $GITHUB_STEP_SUMMARY
+          fi
 
   # ═══════════════════════════════════════════════════════════════
   # JOB 2 — Dependency Scanning (pip-audit)
-  # Checks requirements.txt against the public CVE database.
-  # Fails the pipeline if any package has a known vulnerability.
+  # Checks every package in requirements.txt against the public
+  # CVE database. Fails if any package has a known vulnerability.
   # ═══════════════════════════════════════════════════════════════
   dependency-scanning:
     name: 📦 Dependency Scanning (pip-audit)
@@ -65,19 +92,26 @@ jobs:
         run: pip install pip-audit
 
       - name: Run pip-audit
-        # Scans app/requirements.txt and fails if any CVE is found.
-        # Fix: bump the pinned version to one that is not vulnerable.
         run: pip-audit -r app/requirements.txt
+
+      - name: Write job summary
+        if: always()
+        run: |
+          echo "### 📦 Dependency Scanning — pip-audit" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Result |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "| Known CVEs in requirements.txt | ✅ No vulnerable packages |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Known CVEs in requirements.txt | ❌ Vulnerable package found — upgrade the pinned version |" >> $GITHUB_STEP_SUMMARY
+          fi
 
   # ═══════════════════════════════════════════════════════════════
   # JOB 3 — Static Analysis / SAST (Bandit)
-  # Reads Python source code without executing it and flags
-  # insecure patterns: shell injection, hardcoded passwords,
-  # use of eval(), weak crypto, SQL injection risks, etc.
-  #
-  # SARIF report is uploaded to GitHub Security → Code scanning,
-  # where findings are shown file-by-file with line numbers and
-  # severity levels, and annotated directly on PR diffs.
+  # Reads Python source code without running it and flags
+  # dangerous patterns: shell injection, eval(), weak crypto, etc.
+  # Results are uploaded as SARIF to GitHub Security → Code scanning
+  # AND saved as a downloadable artifact on the Actions run page.
   # ═══════════════════════════════════════════════════════════════
   static-analysis:
     name: 🔍 Static Analysis (Bandit)
@@ -93,35 +127,111 @@ jobs:
           python-version: "3.12"
 
       - name: Install Bandit with SARIF support
-        # bandit[sarif] installs the extra serializer needed for SARIF output
         run: pip install bandit[sarif]
 
-      - name: Run Bandit and generate SARIF report
-        # -r app/     → scan the app/ folder recursively
-        # -ll         → report Medium and High severity only (skip Low noise)
-        # -f sarif    → output in SARIF format (structured, machine-readable)
-        # -o ...      → write results to this file
-        # continue-on-error: true → keep running even if issues found,
-        #   so the SARIF upload step below always runs
+      - name: Run Bandit (generate SARIF report)
         id: bandit
         run: bandit -r app/ -ll -f sarif -o bandit-results.sarif
-        continue-on-error: true
+        continue-on-error: true   # always continue so we can upload the report
 
       - name: Upload Bandit SARIF to GitHub Security tab
-        # This sends bandit-results.sarif to GitHub's Code Scanning feature.
-        # Results appear under Security → Code scanning in your repo.
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: bandit-results.sarif
-          category: bandit-sast   # label shown in the Security tab
-        if: always()   # run this even if the bandit step above failed
+          category: bandit-sast
+        if: always()
 
-      - name: Fail pipeline if Bandit found security issues
-        # This step re-runs Bandit in human-readable format so you can see
-        # the findings clearly in the Action log, then exits with code 1
-        # to mark the job as failed (blocking any PR merge).
+      - name: Upload Bandit report as downloadable artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-sarif-report
+          path: bandit-results.sarif
+          retention-days: 30   # keep the file for 30 days
+        if: always()
+
+      - name: Fail pipeline if Bandit found issues
         if: steps.bandit.outcome == 'failure'
         run: |
-          echo "::error::Bandit found security issues — see Security → Code scanning for details."
+          echo "::error::Bandit found security issues. See Security → Code scanning for details."
           bandit -r app/ -ll
           exit 1
+
+      - name: Write job summary
+        if: always()
+        run: |
+          echo "### 🔍 Static Analysis — Bandit" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Result |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.bandit.outcome }}" = "success" ]; then
+            echo "| Insecure code patterns (Medium/High) | ✅ None found |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Insecure code patterns (Medium/High) | ❌ Issues found — see Security tab |" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "> 📎 Full SARIF report available in the **Artifacts** section of this run." >> $GITHUB_STEP_SUMMARY
+
+  # ═══════════════════════════════════════════════════════════════
+  # JOB 4 — Container Scanning (Trivy)
+  # Builds the Docker image from the Dockerfile, then scans the
+  # entire container — OS libraries, Python packages, base image —
+  # for CRITICAL and HIGH CVEs. ignore-unfixed: true means it only
+  # fails on vulnerabilities that have a patch available.
+  # ═══════════════════════════════════════════════════════════════
+  container-scanning:
+    name: 🐳 Container Scanning (Trivy)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t devsecops-pipeline:${{ github.sha }} .
+
+      - name: Run Trivy (generate SARIF report)
+        id: trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: devsecops-pipeline:${{ github.sha }}
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH      # only flag the most serious issues
+          ignore-unfixed: true         # skip CVEs with no patch available yet
+          exit-code: "1"              # fail the job if any fixable CVE is found
+        continue-on-error: true        # still upload the report even if it fails
+
+      - name: Upload Trivy SARIF to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy-container
+        if: always()
+
+      - name: Upload Trivy report as downloadable artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-sarif-report
+          path: trivy-results.sarif
+          retention-days: 30
+        if: always()
+
+      - name: Fail pipeline if Trivy found fixable CVEs
+        if: steps.trivy.outcome == 'failure'
+        run: |
+          echo "::error::Trivy found CRITICAL or HIGH CVEs with available fixes. See Security tab."
+          exit 1
+
+      - name: Write job summary
+        if: always()
+        run: |
+          echo "### 🐳 Container Scanning — Trivy" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Result |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.trivy.outcome }}" = "success" ]; then
+            echo "| CRITICAL/HIGH CVEs in container image | ✅ None found |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| CRITICAL/HIGH CVEs in container image | ❌ Fixable CVEs found — update base image or dependencies |" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "> 📎 Full SARIF report available in the **Artifacts** section of this run." >> $GITHUB_STEP_SUMMARY
+          echo "> ℹ️  Only CRITICAL and HIGH severity with available fixes are flagged." >> $GITHUB_STEP_SUMMARY

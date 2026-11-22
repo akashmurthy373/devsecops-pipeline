@@ -1,0 +1,13 @@
+# .dockerignore
+# Files listed here are NOT copied into the Docker image.
+# Keeps the image small and prevents secrets from leaking in.
+
+.git
+.github
+__pycache__
+*.pyc
+*.pyo
+*.sarif
+.env
+.env.*
+*.md

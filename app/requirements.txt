@@ -1,6 +1,5 @@
-# Python dependencies for the demo app
-# pip-audit scans these against the CVE database on every push.
-#
-# FIX: requests 2.31.0 had 6 known CVEs (PYSEC-2026-1873, 1872, 2275).
-#      Upgraded to 2.33.0 — the minimum safe version per pip-audit.
-requests==2.33.0
+# Python dependencies for the DevSecOps Dashboard API
+# pip-audit scans this file on every push for known CVEs.
+
+flask==3.0.3        # web framework — powers the 5-route REST API
+requests==2.33.0    # HTTP library — patched from 2.31.0 (had 6 CVEs)

@@ -2,8 +2,6 @@
 # DevSecOps Pipeline — Application Fixture
 # This file is scanned by Bandit (SAST) on every push.
 
-import subprocess   # ← imported for the DEMO function below
-
 
 def greet(name: str) -> str:
     """Return a greeting message."""
@@ -15,21 +13,20 @@ def add(a: int, b: int) -> int:
     return a + b
 
 
-# ─────────────────────────────────────────────────────────────────
-# ⚠️  DEMO FUNCTION — intentionally insecure for Stage A demo
-#
-# subprocess.run() with shell=True is a HIGH-severity finding.
-# It allows shell injection: if `cmd` comes from user input,
-# an attacker could pass: "ls; rm -rf /" and destroy the server.
-#
-# Bandit rule: B602 — subprocess_popen_with_shell_equals_true
-# Severity:    HIGH
-# Fix:         Pass a list of arguments instead: ["ls", "-la"]
-#              and remove shell=True entirely.
-# ─────────────────────────────────────────────────────────────────
-def run_system_command(cmd):
-    """Run a system command — INSECURE (demo only)."""
-    return subprocess.run(cmd, shell=True)   # noqa: B602  ← Bandit WILL flag this
+def run_system_command(args: list) -> str:
+    """
+    Run a system command — SECURE version.
+
+    FIX applied (Bandit B602):
+      BEFORE (insecure): subprocess.run(cmd, shell=True)
+        → shell=True lets attackers inject shell commands via user input.
+
+      AFTER  (secure):   subprocess.run(args, shell=False)
+        → args is a list like ["ls", "-la"], no shell interpretation happens.
+    """
+    import subprocess
+    result = subprocess.run(args, shell=False, capture_output=True, text=True)
+    return result.stdout
 
 
 if __name__ == "__main__":

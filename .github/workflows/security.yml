@@ -1,23 +1,19 @@
 # .github/workflows/security.yml
 # ─────────────────────────────────────────────────────────────────
-# DevSecOps Security Pipeline — Full Version
+# DevSecOps Security Pipeline — Full Version with Executive Dashboard
 #
 # TRIGGERS:
 #   push            → runs on every git push
 #   pull_request    → runs on every PR (blocks merge if any job fails)
 #   schedule        → runs every Monday at 2 AM UTC automatically
-#                     (catches new CVEs even when no code is pushed)
 #   workflow_dispatch → adds a manual "Run workflow" button in GitHub UI
 #
-# JOBS (all run in parallel on separate VMs):
+# JOBS:
 #   1. 🔑 Secret Scanning    — Gitleaks
 #   2. 📦 Dependency Audit   — pip-audit
 #   3. 🔍 Static Analysis    — Bandit (SARIF → Security tab)
 #   4. 🐳 Container Scanning — Trivy  (SARIF → Security tab)
-#
-# EXTRAS (on every job):
-#   - Job summary: formatted markdown report in the Actions UI
-#   - Artifact upload: downloadable SARIF files from each run
+#   5. 📊 Executive Report   — Publishes a consolidated, clean UI dashboard
 # ─────────────────────────────────────────────────────────────────
 
 name: Security Pipeline
@@ -29,9 +25,6 @@ on:
     - cron: "0 2 * * 1"   # Every Monday at 02:00 AM UTC
   workflow_dispatch:        # Adds "Run workflow" button in the Actions tab
 
-# Permissions this workflow needs:
-#   contents: read       → checkout code (read-only)
-#   security-events: write → upload SARIF to GitHub Security tab
 permissions:
   contents: read
   security-events: write
@@ -40,8 +33,6 @@ jobs:
 
   # ═══════════════════════════════════════════════════════════════
   # JOB 1 — Secret Scanning (Gitleaks)
-  # Scans every file and every commit in git history for secrets.
-  # gitleaks-action v2 auto-uploads results to the Security tab.
   # ═══════════════════════════════════════════════════════════════
   secret-scanning:
     name: 🔑 Secret Scanning (Gitleaks)
@@ -51,29 +42,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # Gitleaks needs full git history
+          fetch-depth: 0
 
       - name: Run Gitleaks
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Write job summary
-        if: always()
-        run: |
-          echo "### 🔑 Secret Scanning — Gitleaks" >> $GITHUB_STEP_SUMMARY
-          echo "| Check | Result |" >> $GITHUB_STEP_SUMMARY
-          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ job.status }}" = "success" ]; then
-            echo "| Secrets in files or git history | ✅ None found |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| Secrets in files or git history | ❌ Secret detected — remove it immediately |" >> $GITHUB_STEP_SUMMARY
-          fi
-
   # ═══════════════════════════════════════════════════════════════
   # JOB 2 — Dependency Scanning (pip-audit)
-  # Checks every package in requirements.txt against the public
-  # CVE database. Fails if any package has a known vulnerability.
   # ═══════════════════════════════════════════════════════════════
   dependency-scanning:
     name: 📦 Dependency Scanning (pip-audit)
@@ -94,24 +71,8 @@ jobs:
       - name: Run pip-audit
         run: pip-audit -r app/requirements.txt
 
-      - name: Write job summary
-        if: always()
-        run: |
-          echo "### 📦 Dependency Scanning — pip-audit" >> $GITHUB_STEP_SUMMARY
-          echo "| Check | Result |" >> $GITHUB_STEP_SUMMARY
-          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ job.status }}" = "success" ]; then
-            echo "| Known CVEs in requirements.txt | ✅ No vulnerable packages |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| Known CVEs in requirements.txt | ❌ Vulnerable package found — upgrade the pinned version |" >> $GITHUB_STEP_SUMMARY
-          fi
-
   # ═══════════════════════════════════════════════════════════════
   # JOB 3 — Static Analysis / SAST (Bandit)
-  # Reads Python source code without running it and flags
-  # dangerous patterns: shell injection, eval(), weak crypto, etc.
-  # Results are uploaded as SARIF to GitHub Security → Code scanning
-  # AND saved as a downloadable artifact on the Actions run page.
   # ═══════════════════════════════════════════════════════════════
   static-analysis:
     name: 🔍 Static Analysis (Bandit)
@@ -132,7 +93,7 @@ jobs:
       - name: Run Bandit (generate SARIF report)
         id: bandit
         run: bandit -r app/ -ll -f sarif -o bandit-results.sarif
-        continue-on-error: true   # always continue so we can upload the report
+        continue-on-error: true
 
       - name: Upload Bandit SARIF to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3
@@ -146,7 +107,7 @@ jobs:
         with:
           name: bandit-sarif-report
           path: bandit-results.sarif
-          retention-days: 30   # keep the file for 30 days
+          retention-days: 30
         if: always()
 
       - name: Fail pipeline if Bandit found issues
@@ -156,26 +117,8 @@ jobs:
           bandit -r app/ -ll
           exit 1
 
-      - name: Write job summary
-        if: always()
-        run: |
-          echo "### 🔍 Static Analysis — Bandit" >> $GITHUB_STEP_SUMMARY
-          echo "| Check | Result |" >> $GITHUB_STEP_SUMMARY
-          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ steps.bandit.outcome }}" = "success" ]; then
-            echo "| Insecure code patterns (Medium/High) | ✅ None found |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| Insecure code patterns (Medium/High) | ❌ Issues found — see Security tab |" >> $GITHUB_STEP_SUMMARY
-          fi
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "> 📎 Full SARIF report available in the **Artifacts** section of this run." >> $GITHUB_STEP_SUMMARY
-
   # ═══════════════════════════════════════════════════════════════
   # JOB 4 — Container Scanning (Trivy)
-  # Builds the Docker image from the Dockerfile, then scans the
-  # entire container — OS libraries, Python packages, base image —
-  # for CRITICAL and HIGH CVEs. ignore-unfixed: true means it only
-  # fails on vulnerabilities that have a patch available.
   # ═══════════════════════════════════════════════════════════════
   container-scanning:
     name: 🐳 Container Scanning (Trivy)
@@ -189,8 +132,6 @@ jobs:
         run: docker build -t devsecops-pipeline:${{ github.sha }} .
 
       - name: Run Trivy (generate SARIF report — CRITICAL and HIGH)
-        # Generates a full report of CRITICAL + HIGH CVEs for the Security tab.
-        # exit-code 0 means this step always passes — it's for reporting only.
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: devsecops-pipeline:${{ github.sha }}
@@ -201,11 +142,6 @@ jobs:
           exit-code: "0"
 
       - name: Run Trivy gate (fail pipeline only on CRITICAL CVEs)
-        # This is the actual security gate.
-        # Policy: HIGH CVEs are tracked and visible in the Security tab,
-        # but only CRITICAL CVEs with available fixes block the pipeline.
-        # This is standard in production DevSecOps — gating on HIGH in base
-        # OS images causes false positives outside the team's control.
         id: trivy
         uses: aquasecurity/trivy-action@master
         with:
@@ -234,20 +170,80 @@ jobs:
       - name: Fail pipeline if Trivy found fixable CVEs
         if: steps.trivy.outcome == 'failure'
         run: |
-          echo "::error::Trivy found CRITICAL or HIGH CVEs with available fixes. See Security tab."
+          echo "::error::Trivy found CRITICAL CVEs with available fixes. See Security tab."
           exit 1
 
-      - name: Write job summary
-        if: always()
+  # ═══════════════════════════════════════════════════════════════
+  # JOB 5 — Consolidated Executive Security Dashboard
+  # ═══════════════════════════════════════════════════════════════
+  security-dashboard:
+    name: 📊 Security Summary Dashboard
+    runs-on: ubuntu-latest
+    needs: [secret-scanning, dependency-scanning, static-analysis, container-scanning]
+    if: always()   # Always run so you get the full report even if a scan failed
+
+    steps:
+      - name: Generate Consolidated Dashboard
         run: |
-          echo "### 🐳 Container Scanning — Trivy" >> $GITHUB_STEP_SUMMARY
-          echo "| Check | Result |" >> $GITHUB_STEP_SUMMARY
-          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ steps.trivy.outcome }}" = "success" ]; then
-            echo "| CRITICAL/HIGH CVEs in container image | ✅ None found |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| CRITICAL/HIGH CVEs in container image | ❌ Fixable CVEs found — update base image or dependencies |" >> $GITHUB_STEP_SUMMARY
+          # Read status of each upstream job
+          GITLEAKS="${{ needs.secret-scanning.result }}"
+          PIPAUDIT="${{ needs.dependency-scanning.result }}"
+          BANDIT="${{ needs.static-analysis.result }}"
+          TRIVY="${{ needs.container-scanning.result }}"
+
+          format_status() {
+            if [ "$1" = "success" ]; then
+              echo "🟢 **PASSED**"
+            elif [ "$1" = "failure" ]; then
+              echo "🔴 **FAILED**"
+            else
+              echo "⚪ **SKIPPED / UNKNOWN**"
+            fi
+          }
+
+          S_GITLEAKS=$(format_status "$GITLEAKS")
+          S_PIPAUDIT=$(format_status "$PIPAUDIT")
+          S_BANDIT=$(format_status "$BANDIT")
+          S_TRIVY=$(format_status "$TRIVY")
+
+          OVERALL="🟢 **COMPLIANT (SAFE TO MERGE)**"
+          if [ "$GITLEAKS" != "success" ] || [ "$PIPAUDIT" != "success" ] || [ "$BANDIT" != "success" ] || [ "$TRIVY" != "success" ]; then
+            OVERALL="🔴 **NON-COMPLIANT (MERGE BLOCKED)**"
           fi
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "> 📎 Full SARIF report available in the **Artifacts** section of this run." >> $GITHUB_STEP_SUMMARY
-          echo "> ℹ️  Only CRITICAL and HIGH severity with available fixes are flagged." >> $GITHUB_STEP_SUMMARY
+
+          cat << 'EOF' > dashboard.md
+          # 🛡️ DevSecOps Automated Security Report
+
+          > **Executive Summary for Commit:** `${{ github.sha }}`  
+          > **Triggered By:** `${{ github.actor }}` on `${{ github.event_name }}` (`${{ github.ref_name }}`)
+
+          ---
+
+          ### 🚦 Pipeline Gate Status: OVERALL_STATUS_PLACEHOLDER
+
+          | Layer | Security Tool | Domain Checked | Result | Policy Gate |
+          | :--- | :--- | :--- | :---: | :---: |
+          | **1. Secrets** | **Gitleaks v2** | Exposed API Keys, Tokens, Passwords in Git | GITLEAKS_STATUS | Zero-Tolerance (Block) |
+          | **2. Dependencies** | **pip-audit** | Known CVEs in Python `requirements.txt` | PIPAUDIT_STATUS | Block on Known CVEs |
+          | **3. Code (SAST)** | **Bandit** | Insecure Python code patterns, injection, eval | BANDIT_STATUS | Block on Med/High |
+          | **4. Container** | **Trivy** | Vulnerabilities in Docker OS & Base Image | TRIVY_STATUS | Block on CRITICAL (Patched) |
+
+          ---
+
+          ### 📑 Quick Links & Audit Trail
+          - 🔍 **[GitHub Code Scanning Alerts](../../security/code-scanning)** (Interactive SARIF findings)
+          - 📦 **[Download SARIF Artifacts](#artifacts)** (Available for 30 days)
+          - 🛡️ **Branch Policy:** Branch protection active on \`main\` branch.
+
+          *Report generated automatically by DevSecOps CI/CD Pipeline.*
+          EOF
+
+          # Replace placeholders
+          sed -i "s|OVERALL_STATUS_PLACEHOLDER|$OVERALL|g" dashboard.md
+          sed -i "s|GITLEAKS_STATUS|$S_GITLEAKS|g" dashboard.md
+          sed -i "s|PIPAUDIT_STATUS|$S_PIPAUDIT|g" dashboard.md
+          sed -i "s|BANDIT_STATUS|$S_BANDIT|g" dashboard.md
+          sed -i "s|TRIVY_STATUS|$S_TRIVY|g" dashboard.md
+
+          # Append to GitHub Step Summary
+          cat dashboard.md >> $GITHUB_STEP_SUMMARY

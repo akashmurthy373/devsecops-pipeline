@@ -1,3 +1,6 @@
 # Python dependencies for the demo app
-# pip-audit will scan these for known CVEs (Stage 2)
-requests==2.31.0
+# pip-audit scans these against the CVE database on every push.
+#
+# FIX: requests 2.31.0 had 6 known CVEs (PYSEC-2026-1873, 1872, 2275).
+#      Upgraded to 2.33.0 — the minimum safe version per pip-audit.
+requests==2.33.0

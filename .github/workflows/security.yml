@@ -1,0 +1,83 @@
+# .github/workflows/security.yml
+# ─────────────────────────────────────────────────────────────────
+# DevSecOps Security Pipeline
+# Runs automatically on every push and pull request.
+# Three jobs run in parallel, each on a fresh Ubuntu VM.
+# ─────────────────────────────────────────────────────────────────
+
+name: Security Pipeline
+
+on:         # WHEN to run this workflow
+  push:     # on every git push (any branch)
+  pull_request:  # on every pull request
+
+jobs:
+
+  # ═══════════════════════════════════════════════════════
+  # JOB 1 — Secret Scanning with Gitleaks
+  # Scans all files and git history for accidentally
+  # committed secrets (API keys, passwords, tokens).
+  # ═══════════════════════════════════════════════════════
+  secret-scanning:
+    name: 🔑 Secret Scanning (Gitleaks)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full git history required by Gitleaks
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ═══════════════════════════════════════════════════════
+  # JOB 2 — Dependency Scanning with pip-audit
+  # Checks requirements.txt against the CVE database.
+  # Flags any package with a known security vulnerability.
+  # ═══════════════════════════════════════════════════════
+  dependency-scanning:
+    name: 📦 Dependency Scanning (pip-audit)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: Run pip-audit
+        run: pip-audit -r app/requirements.txt
+
+  # ═══════════════════════════════════════════════════════
+  # JOB 3 — Static Analysis (SAST) with Bandit
+  # Scans Python source code for insecure patterns such as
+  # hardcoded passwords, SQL injection risks, use of weak
+  # cryptography, and other common vulnerabilities.
+  # ═══════════════════════════════════════════════════════
+  static-analysis:
+    name: 🔍 Static Analysis (Bandit)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Bandit
+        run: pip install bandit
+
+      - name: Run Bandit
+        run: bandit -r app/ -ll   # -ll = only report medium and high severity issues

@@ -1,0 +1,14 @@
+# .gitleaks.toml
+# Gitleaks configuration file.
+# The [allowlist] section lets us whitelist known-safe strings
+# so the scanner doesn't flag our demo/test files as real secrets.
+
+title = "DevSecOps Pipeline — Gitleaks Config"
+
+[allowlist]
+  description = "Allowlist for demo and documentation strings"
+  # Add commit SHAs, file paths, or regex patterns to skip here.
+  # Example: paths = [ '''.gitleaks.toml''' ]
+  paths = [
+    '''.gitleaks.toml''',
+  ]

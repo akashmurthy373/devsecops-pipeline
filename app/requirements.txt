@@ -1,0 +1,3 @@
+# Python dependencies for the demo app
+# pip-audit will scan these for known CVEs (Stage 2)
+requests==2.31.0

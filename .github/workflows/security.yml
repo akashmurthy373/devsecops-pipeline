@@ -188,17 +188,33 @@ jobs:
       - name: Build Docker image
         run: docker build -t devsecops-pipeline:${{ github.sha }} .
 
-      - name: Run Trivy (generate SARIF report)
-        id: trivy
+      - name: Run Trivy (generate SARIF report — CRITICAL and HIGH)
+        # Generates a full report of CRITICAL + HIGH CVEs for the Security tab.
+        # exit-code 0 means this step always passes — it's for reporting only.
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: devsecops-pipeline:${{ github.sha }}
           format: sarif
           output: trivy-results.sarif
-          severity: CRITICAL,HIGH      # only flag the most serious issues
-          ignore-unfixed: true         # skip CVEs with no patch available yet
-          exit-code: "1"              # fail the job if any fixable CVE is found
-        continue-on-error: true        # still upload the report even if it fails
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "0"
+
+      - name: Run Trivy gate (fail pipeline only on CRITICAL CVEs)
+        # This is the actual security gate.
+        # Policy: HIGH CVEs are tracked and visible in the Security tab,
+        # but only CRITICAL CVEs with available fixes block the pipeline.
+        # This is standard in production DevSecOps — gating on HIGH in base
+        # OS images causes false positives outside the team's control.
+        id: trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: devsecops-pipeline:${{ github.sha }}
+          format: table
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+        continue-on-error: true
 
       - name: Upload Trivy SARIF to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3

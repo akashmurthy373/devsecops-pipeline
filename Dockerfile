@@ -11,7 +11,7 @@
 # ─────────────────────────────────────────────────────────────────
 
 # Base image: official Python 3.12 (slim = smaller, fewer packages = fewer CVEs)
-FROM python:3.12-slim
+FROM python:3.13-slim
 
 # Set the working directory inside the container
 WORKDIR /app

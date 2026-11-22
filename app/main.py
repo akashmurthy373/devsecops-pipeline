@@ -92,4 +92,7 @@ def trigger_scan():
 if __name__ == "__main__":
     # debug=False is important in production — debug=True exposes an
     # interactive shell that lets attackers run code on your server.
-    app.run(host="0.0.0.0", port=5000, debug=False)
+    # nosec B104 — binding to 0.0.0.0 is intentional here:
+    # inside Docker, the app must listen on all interfaces
+    # so it's reachable from outside the container.
+    app.run(host="0.0.0.0", port=5000, debug=False)  # nosec B104

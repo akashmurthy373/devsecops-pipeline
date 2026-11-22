@@ -7,209 +7,242 @@
   <style>
     :root {
       --bg: #0d1117;
-      --card-bg: #161b22;
+      --panel: #161b22;
       --border: #30363d;
       --text: #e6edf3;
       --text-muted: #8b949e;
       --accent: #238636;
-      --accent-dim: rgba(35, 134, 54, 0.15);
       --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
       --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
-    body {
+    html, body {
+      height: 100vh;
+      overflow: hidden;
       background-color: var(--bg);
       color: var(--text);
       font-family: var(--font-sans);
-      font-size: 14px;
-      line-height: 1.5;
-      padding: 32px 24px;
+      font-size: 12px;
+      line-height: 1.4;
     }
 
     .container {
-      max-width: 980px;
+      max-width: 1440px;
+      height: 100vh;
       margin: 0 auto;
+      padding: 18px 24px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
     }
 
-    /* Header Bar */
+    /* Compact Header */
     header {
-      border-bottom: 1px solid var(--border);
-      padding-bottom: 24px;
-      margin-bottom: 32px;
       display: flex;
       justify-content: space-between;
-      align-items: flex-start;
-      flex-wrap: wrap;
-      gap: 16px;
+      align-items: center;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .title-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
     }
 
     h1 {
-      font-size: 20px;
+      font-size: 16px;
       font-weight: 600;
       letter-spacing: -0.2px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
     }
 
-    .badge-live {
-      display: inline-block;
+    .status-badge {
       font-family: var(--font-mono);
-      font-size: 11px;
+      font-size: 10px;
       text-transform: uppercase;
-      padding: 2px 8px;
+      padding: 1px 6px;
       border: 1px solid var(--accent);
-      background: var(--accent-dim);
+      background: rgba(35, 134, 54, 0.15);
       color: #3fb950;
       border-radius: 2px;
     }
 
+    .desc {
+      color: var(--text-muted);
+      font-size: 11px;
+    }
+
     .repo-link {
       font-family: var(--font-mono);
-      font-size: 12px;
+      font-size: 11px;
       color: var(--text-muted);
       text-decoration: none;
       border: 1px solid var(--border);
-      padding: 6px 12px;
-      border-radius: 4px;
-      background: var(--card-bg);
-      transition: border-color 0.15s ease;
+      padding: 4px 10px;
+      border-radius: 3px;
+      background: var(--panel);
     }
     .repo-link:hover {
       border-color: #58a6ff;
       color: var(--text);
     }
 
-    /* Metric cards row */
-    .metrics-row {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 16px;
-      margin-bottom: 32px;
-    }
-
-    .card {
-      background: var(--card-bg);
+    /* Minimal Metadata Bar (No Cards) */
+    .meta-bar {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      padding: 8px 14px;
+      background: var(--panel);
       border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 16px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      margin: 12px 0;
+      flex-shrink: 0;
     }
 
-    .card-label {
+    .meta-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .meta-label {
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-size: 10px;
+    }
+
+    .meta-val {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    /* Side-by-side Tables Grid */
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      flex: 1;
+      min-height: 0; /* Prevents overflow */
+    }
+
+    .panel {
+      display: flex;
+      flex-direction: column;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .panel-header {
+      padding: 8px 12px;
+      background: #1c2128;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    .panel-title {
       font-family: var(--font-mono);
       font-size: 11px;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      margin-bottom: 6px;
-    }
-
-    .card-value {
-      font-size: 18px;
-      font-weight: 600;
-      color: var(--text);
-    }
-
-    .card-sub {
-      font-size: 12px;
-      color: var(--text-muted);
-      margin-top: 4px;
-    }
-
-    /* Section Headings */
-    h2 {
-      font-size: 14px;
       font-weight: 600;
       text-transform: uppercase;
+      color: var(--text-muted);
       letter-spacing: 0.5px;
-      color: var(--text-muted);
-      margin-bottom: 12px;
-      font-family: var(--font-mono);
     }
 
-    /* Tables */
-    .table-container {
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      overflow-x: auto;
-      margin-bottom: 32px;
+    .panel-desc {
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .table-wrap {
+      flex: 1;
+      overflow: auto;
     }
 
     table {
       width: 100%;
       border-collapse: collapse;
       text-align: left;
-      font-size: 13px;
+      font-size: 11px;
     }
 
     th {
-      background: #1c2128;
+      position: sticky;
+      top: 0;
+      background: #161b22;
       color: var(--text-muted);
       font-family: var(--font-mono);
-      font-size: 11px;
+      font-size: 10px;
       text-transform: uppercase;
-      padding: 10px 16px;
+      padding: 6px 10px;
       border-bottom: 1px solid var(--border);
       font-weight: 500;
     }
 
     td {
-      padding: 12px 16px;
-      border-bottom: 1px solid var(--border);
-      vertical-align: top;
+      padding: 6px 10px;
+      border-bottom: 1px solid rgba(48, 54, 61, 0.5);
+      vertical-align: middle;
+      white-space: nowrap;
     }
 
     tr:last-child td { border-bottom: none; }
 
-    .tag {
+    code {
       font-family: var(--font-mono);
-      font-size: 11px;
-      padding: 2px 6px;
-      border-radius: 3px;
-      background: rgba(110, 118, 129, 0.1);
-      border: 1px solid var(--border);
+      font-size: 10.5px;
+      color: #79c0ff;
     }
 
     .status-pass {
       color: #3fb950;
+      font-family: var(--font-mono);
+      font-size: 10.5px;
       font-weight: 600;
-      font-family: var(--font-mono);
-      font-size: 12px;
     }
 
-    /* Architecture Block */
-    .arch-grid {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 16px;
-      margin-bottom: 32px;
-    }
-
-    .code-box {
-      background: #0b0e14;
+    /* Bottom Architecture Strip */
+    .arch-bar {
+      margin-top: 12px;
+      padding: 8px 12px;
       border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 16px;
+      background: #0b0e14;
+      border-radius: 4px;
       font-family: var(--font-mono);
-      font-size: 12px;
-      color: #abb2bf;
-      white-space: pre;
-      overflow-x: auto;
-      line-height: 1.45;
-    }
-
-    footer {
-      border-top: 1px solid var(--border);
-      padding-top: 20px;
-      font-size: 12px;
+      font-size: 10.5px;
       color: var(--text-muted);
       display: flex;
       justify-content: space-between;
-      flex-wrap: wrap;
-      gap: 12px;
+      align-items: center;
+      flex-shrink: 0;
+      white-space: nowrap;
+      overflow-x: auto;
+    }
+
+    .arch-step {
+      color: #e6edf3;
+    }
+
+    /* Footer */
+    footer {
+      padding-top: 10px;
+      display: flex;
+      justify-content: space-between;
+      color: var(--text-muted);
+      font-size: 10px;
       font-family: var(--font-mono);
+      flex-shrink: 0;
     }
   </style>
 </head>
@@ -217,15 +250,12 @@
 
   <div class="container">
 
+    <!-- Top Header -->
     <header>
-      <div>
-        <h1>
-          DevSecOps Automated Security Pipeline
-          <span class="badge-live">Production Gate Active</span>
-        </h1>
-        <p style="color: var(--text-muted); margin-top: 6px; font-size: 13px;">
-          Continuous security integration via GitHub Actions for containerized microservices.
-        </p>
+      <div class="title-group">
+        <h1>DevSecOps Automated Security Pipeline</h1>
+        <span class="status-badge">Production Gate Active</span>
+        <span class="desc">— CI/CD security validation for containerized microservices</span>
       </div>
       <div>
         <a class="repo-link" href="https://github.com/akashmurthy373/devsecops-pipeline" target="_blank" rel="noreferrer">
@@ -234,140 +264,158 @@
       </div>
     </header>
 
-    <!-- Key Metrics -->
-    <div class="metrics-row">
-      <div class="card">
-        <div class="card-label">Pipeline Gate</div>
-        <div class="card-value" style="color: #3fb950;">Strict Enforcement</div>
-        <div class="card-sub">Branch protection rules on <code>main</code></div>
+    <!-- Metadata Bar (No Cards) -->
+    <div class="meta-bar">
+      <div class="meta-item">
+        <span class="meta-label">Gate Policy:</span>
+        <span class="meta-val" style="color: #3fb950;">Strict Branch Enforcement</span>
       </div>
-      <div class="card">
-        <div class="card-label">Active Scanners</div>
-        <div class="card-value">4 Parallel Jobs</div>
-        <div class="card-sub">Secrets, Deps, SAST, Container</div>
+      <span style="color: var(--border);">|</span>
+      <div class="meta-item">
+        <span class="meta-label">Scanners:</span>
+        <span class="meta-val">4 Parallel Engines</span>
       </div>
-      <div class="card">
-        <div class="card-label">Reporting Format</div>
-        <div class="card-value">SARIF v2.1.0</div>
-        <div class="card-sub">Native GitHub Code Scanning</div>
+      <span style="color: var(--border);">|</span>
+      <div class="meta-item">
+        <span class="meta-label">Report Standard:</span>
+        <span class="meta-val">SARIF v2.1.0</span>
       </div>
-      <div class="card">
-        <div class="card-label">Audit Cadence</div>
-        <div class="card-value">Push / PR / Cron</div>
-        <div class="card-sub">Weekly auto-scan every Monday</div>
+      <span style="color: var(--border);">|</span>
+      <div class="meta-item">
+        <span class="meta-label">Cadence:</span>
+        <span class="meta-val">Push / PR / Cron (Weekly)</span>
+      </div>
+      <span style="color: var(--border);">|</span>
+      <div class="meta-item">
+        <span class="meta-label">Target:</span>
+        <span class="meta-val">Flask 3.1.3 (Docker)</span>
       </div>
     </div>
 
-    <!-- Security Layers -->
-    <h2>1. Continuous Security Controls</h2>
-    <div class="table-container">
-      <table>
-        <thead>
-          <tr>
-            <th>Security Layer</th>
-            <th>Tool</th>
-            <th>Inspection Target</th>
-            <th>Gate Policy</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><strong>Secret Detection</strong></td>
-            <td><code>gitleaks-action v2</code></td>
-            <td>Full commit tree, tokens, private keys</td>
-            <td>Zero-tolerance: blocks any hardcoded pattern</td>
-            <td><span class="status-pass">PASS</span></td>
-          </tr>
-          <tr>
-            <td><strong>Dependency Auditing</strong></td>
-            <td><code>pip-audit</code></td>
-            <td><code>requirements.txt</code> vs PyPI / OSV</td>
-            <td>Fail on unpatched CVEs in dependency tree</td>
-            <td><span class="status-pass">PASS</span></td>
-          </tr>
-          <tr>
-            <td><strong>Static Analysis (SAST)</strong></td>
-            <td><code>bandit[sarif]</code></td>
-            <td>Python source (injection, eval, weak crypto)</td>
-            <td>Fail on Medium &amp; High severity findings</td>
-            <td><span class="status-pass">PASS</span></td>
-          </tr>
-          <tr>
-            <td><strong>Container Vulnerability</strong></td>
-            <td><code>trivy-action</code></td>
-            <td>Built Docker image OS libraries &amp; layers</td>
-            <td>Block on CRITICAL vulnerabilities with fixes</td>
-            <td><span class="status-pass">PASS</span></td>
-          </tr>
-        </tbody>
-      </table>
+    <!-- Side-by-Side Content Area (No vertical scrolling) -->
+    <div class="grid">
+
+      <!-- Left Panel: Active Controls -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">1. Security Controls &amp; Policies</span>
+          <span class="panel-desc">Parallel automated verification</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Layer</th>
+                <th>Engine</th>
+                <th>Inspection Target</th>
+                <th>Enforcement Rule</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Secrets</strong></td>
+                <td><code>gitleaks</code></td>
+                <td>Git history, keys, tokens</td>
+                <td>Zero-tolerance block</td>
+                <td><span class="status-pass">PASS</span></td>
+              </tr>
+              <tr>
+                <td><strong>Dependencies</strong></td>
+                <td><code>pip-audit</code></td>
+                <td><code>requirements.txt</code> (CVEs)</td>
+                <td>Block on known flaws</td>
+                <td><span class="status-pass">PASS</span></td>
+              </tr>
+              <tr>
+                <td><strong>Code (SAST)</strong></td>
+                <td><code>bandit</code></td>
+                <td>Python source (AST analysis)</td>
+                <td>Block Med / High</td>
+                <td><span class="status-pass">PASS</span></td>
+              </tr>
+              <tr>
+                <td><strong>Container</strong></td>
+                <td><code>trivy</code></td>
+                <td>Docker image OS &amp; packages</td>
+                <td>Block on CRITICAL</td>
+                <td><span class="status-pass">PASS</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Right Panel: Remediation Audit Trail -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">2. Remediation Audit Trail</span>
+          <span class="panel-desc">5 real findings resolved</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Rule / CVE</th>
+                <th>Engine</th>
+                <th>Observed Vulnerability</th>
+                <th>Remediation Fix</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>PYSEC-2026-1873</code></td>
+                <td>pip-audit</td>
+                <td><code>requests==2.31.0</code> flaw</td>
+                <td>Upgraded to <code>2.33.0</code></td>
+              </tr>
+              <tr>
+                <td><code>PYSEC-2026-2151</code></td>
+                <td>pip-audit</td>
+                <td><code>flask==3.0.3</code> vulnerability</td>
+                <td>Upgraded to <code>3.1.3</code></td>
+              </tr>
+              <tr>
+                <td><code>B602 (High)</code></td>
+                <td>Bandit</td>
+                <td>Shell injection (<code>shell=True</code>)</td>
+                <td>Refactored to <code>shell=False</code></td>
+              </tr>
+              <tr>
+                <td><code>B104 (Med)</code></td>
+                <td>Bandit</td>
+                <td>Bind to <code>0.0.0.0</code> interface</td>
+                <td>Added documented <code># nosec B104</code></td>
+              </tr>
+              <tr>
+                <td><code>Debian CVEs</code></td>
+                <td>Trivy</td>
+                <td><code>python:3.12-slim</code> base flaws</td>
+                <td>Upgraded to <code>python:3.13-slim</code></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
     </div>
 
-    <!-- Real CVE remediation record -->
-    <h2>2. CVE Detection &amp; Remediation Audit Trail</h2>
-    <div class="table-container">
-      <table>
-        <thead>
-          <tr>
-            <th>Identifier / Rule</th>
-            <th>Scanner</th>
-            <th>Observed Flaw</th>
-            <th>Remediation Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><code>PYSEC-2026-1873</code></td>
-            <td>pip-audit</td>
-            <td>Vulnerable <code>requests==2.31.0</code> dependency</td>
-            <td>Patched version bumped to <code>2.33.0</code></td>
-          </tr>
-          <tr>
-            <td><code>PYSEC-2026-2151</code></td>
-            <td>pip-audit</td>
-            <td>Vulnerable <code>flask==3.0.3</code> dependency</td>
-            <td>Patched version bumped to <code>3.1.3</code></td>
-          </tr>
-          <tr>
-            <td><code>B602 (High)</code></td>
-            <td>Bandit</td>
-            <td>Command injection via <code>subprocess(shell=True)</code></td>
-            <td>Refactored to <code>shell=False</code> with argument list</td>
-          </tr>
-          <tr>
-            <td><code>B104 (Medium)</code></td>
-            <td>Bandit</td>
-            <td>Binding to all network interfaces (<code>0.0.0.0</code>)</td>
-            <td>Verified required for Docker; documented with <code># nosec B104</code></td>
-          </tr>
-          <tr>
-            <td><code>Debian OS CVEs</code></td>
-            <td>Trivy</td>
-            <td>Vulnerabilities in <code>python:3.12-slim</code> base image</td>
-            <td>Upgraded to <code>python:3.13-slim</code> base image</td>
-          </tr>
-        </tbody>
-      </table>
+    <!-- Bottom Topology Strip -->
+    <div class="arch-bar">
+      <span><strong>Pipeline Topology:</strong></span>
+      <span>git push / PR / Cron</span>
+      <span style="color: var(--border);">───▶</span>
+      <span class="arch-step">[Gitleaks + pip-audit + Bandit + Trivy]</span>
+      <span style="color: var(--border);">───▶</span>
+      <span class="arch-step">Executive Summary Dashboard</span>
+      <span style="color: var(--border);">───▶</span>
+      <span style="color: #3fb950; font-weight: 600;">Branch Gate (main protected)</span>
     </div>
 
-    <!-- Execution Topology -->
-    <h2>3. Pipeline Orchestration Topology</h2>
-    <div class="arch-grid">
-      <div class="code-box">git push / PR / Schedule (Cron: 0 2 * * 1)
- ├── Job 1: Gitleaks        ──> [SARIF] ──┐
- ├── Job 2: pip-audit       ──> [Logs]  ──┤
- ├── Job 3: Bandit          ──> [SARIF] ──┼──> GitHub Code Scanning &amp; Artifacts
- └── Job 4: Trivy Container ──> [SARIF] ──┘
-         │
-         └──> Job 5: Security Summary Dashboard (Executive Markdown Report)
-                 │
-                 └──> Branch Protection: Merge BLOCKED if any gate fails</div>
-    </div>
-
+    <!-- Compact Footer -->
     <footer>
-      <div>Target Application: Flask 3.1.3 REST API (5 endpoints) in Docker Container</div>
-      <div>Engine: GitHub Actions (ubuntu-latest)</div>
+      <span>GitHub Actions Engine: ubuntu-latest</span>
+      <span>Artifact Reporting: SARIF v2.1.0 to Code Scanning</span>
     </footer>
 
   </div>

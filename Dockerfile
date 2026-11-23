@@ -1,5 +1,5 @@
-# Official Python 3.13-slim base image (clean, patched Debian base)
-FROM python:3.13-slim
+# ❌ Finding (Trivy): Older Debian Bullseye base image contains known system-level CVEs
+FROM python:3.11-slim-bullseye
 
 WORKDIR /app
 

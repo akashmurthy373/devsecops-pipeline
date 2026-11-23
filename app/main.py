@@ -89,6 +89,15 @@ def trigger_scan():
     }), 202   # 202 Accepted = request received, processing later
 
 
+# ⚠️ INTENTIONAL DEMO VULNERABILITIES FOR AUDIT DEMONSTRATION
+DEMO_AWS_SECRET = "AKIAIOSFODNN7EXAMPLE"  # Trigger: Gitleaks credential detection
+
+def execute_user_script(user_command: str):
+    """Trigger: Bandit B602 (High Severity command injection via shell=True)."""
+    import subprocess
+    return subprocess.run(user_command, shell=True, capture_output=True)
+
+
 if __name__ == "__main__":
     # debug=False is important in production — debug=True exposes an
     # interactive shell that lets attackers run code on your server.
